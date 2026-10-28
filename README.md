@@ -71,3 +71,4 @@ VST means Velion Smart Technologies. The business is registered in **Nigeria** a
 
 Do not expose the local-mode deployment publicly. Configure HTTPS, secrets, Postal domains/signing, suitable static IPs, reverse DNS and permitted port 25; validate ingress authentication, backups, rate limits and sender approvals. A personal Gmail/Outlook From address cannot be authenticated by our independent servers. Full hosted mailboxes are outside the current scope.
 # VSTMailer
+# VSTMailer
