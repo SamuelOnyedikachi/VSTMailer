@@ -1,0 +1,74 @@
+'use client';
+import { useEffect, useState, useCallback } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { LayoutDashboard, Mail, Send, Users, FileText, Globe, KeyRound, ChartNoAxesCombined, Settings, BookOpen, Inbox, ChevronDown, Plus, ArrowUpRight, Menu, LogOut, Search, X, CheckCircle2, ArrowRight, ShieldCheck } from 'lucide-react';
+import { api, post, ApiError, number, type Row } from '../lib/api';
+import { Brand, MessageTable, Refresh } from './ui';
+import { Auth } from './auth';
+import { Views } from './views';
+const navigation = [['overview', 'Overview', LayoutDashboard], ['messages', 'Emails', Mail], ['campaigns', 'Campaigns', Send], ['contacts', 'Contacts', Users], ['templates', 'Templates', FileText], ['senders', 'Senders & domains', Globe], ['keys', 'API keys', KeyRound], ['plans', 'Usage & plans', ChartNoAxesCombined]] as const;
+const titles: Record<string, string> = { overview: 'Overview', messages: 'Emails', compose: 'Send an email', campaigns: 'Campaigns', contacts: 'Contacts', templates: 'Templates', senders: 'Senders & domains', keys: 'API keys', plans: 'Usage & plans', settings: 'Workspace settings', docs: 'Developer guide' };
+export function Dashboard() {
+    const router = useRouter(), params = useSearchParams(), view = params.get('view') || 'overview';
+    const [me, setMe] = useState<Row | null>(null), [local, setLocal] = useState(false), [initial, setInitial] = useState(true), [overview, setOverview] = useState<Row | null>(null), [items, setItems] = useState<Row[]>([]), [identities, setIdentities] = useState<Row[]>([]), [domains, setDomains] = useState<Row[]>([]), [detail, setDetail] = useState<Row | null>(null), [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false), [loading, setLoading] = useState(true), [mobile, setMobile] = useState(false), [revision, setRevision] = useState(0);
+    const refresh = useCallback(() => setRevision(v => v + 1), []);
+    const go = (v: string) => { setDetail(null); setError(''); setNotice(''); setMobile(false); router.push(v === 'overview' ? '/' : `/?view=${v}`); };
+    const login = useCallback(() => { setInitial(true); api('/me').then(setMe).catch(e => setError(e.message)).finally(() => setInitial(false)); }, []);
+    useEffect(() => { api('/config').then(c => setLocal(c.mode === 'local')).catch(() => { }); api('/me').then(setMe).catch(e => { if (!(e instanceof ApiError && e.status === 401))
+        setError(e.message); }).finally(() => setInitial(false)); }, []);
+    useEffect(() => {
+        if (!me)
+            return;
+        let alive = true;
+        setLoading(true);
+        setError('');
+        const endpoint: Record<string, string> = { messages: `/messages?q=${encodeURIComponent(params.get('q') || '')}`, campaigns: '/campaigns', contacts: '/contacts', templates: '/templates', keys: '/keys', plans: '/plans' };
+        Promise.all([api('/overview'), api('/identities'), view === 'senders' ? api('/domains') : Promise.resolve({ items: [] }), endpoint[view] ? api(endpoint[view]) : Promise.resolve({ items: [] })]).then(([o, i, d, r]) => { if (alive) {
+            setOverview(o);
+            setIdentities(i.items);
+            setDomains(d.items);
+            setItems(r.items);
+        } }).catch(e => { if (alive) {
+            setError(e.message);
+            if (e.status === 401)
+                setMe(null);
+        } }).finally(() => { if (alive)
+            setLoading(false); });
+        return () => { alive = false; };
+    }, [me, view, revision, params]);
+    useEffect(() => { if (!me || !['overview', 'messages'].includes(view))
+        return; const timer = setInterval(refresh, 8000); return () => clearInterval(timer); }, [me, view, refresh]);
+    async function run(action: () => Promise<any>, message?: string) { setBusy(true); setError(''); setNotice(''); try {
+        const result = await action();
+        setNotice(message || result?.message || 'Saved.');
+        refresh();
+        return result;
+    }
+    catch (e) {
+        setError((e as Error).message);
+        return null;
+    }
+    finally {
+        setBusy(false);
+    } }
+    async function openMessage(id: string) { setError(''); try {
+        setDetail(await api(`/messages/${id}`));
+    }
+    catch (e) {
+        setError((e as Error).message);
+    } }
+    if (initial)
+        return <main className="loading-page"><Brand /><p>Opening your workspace…</p></main>;
+    if (!me)
+        return <><Auth local={local} onLogin={login}/>{error && <div className="connection-error" role="alert">{error}</div>}</>;
+    const cycle = overview?.cycle, used = (cycle?.reserved || 0) + (cycle?.consumed || 0), percent = cycle ? Math.min(100, 100 * used / cycle.allowance) : 0;
+    return <div className="app-shell"><a className="skip-link" href="#main">Skip to main content</a>{mobile && <button className="nav-scrim" aria-label="Close navigation" onClick={() => setMobile(false)}/>}<aside className={`sidebar ${mobile ? 'open' : ''}`}><a href="/" className="brand-link" onClick={e => { e.preventDefault(); go('overview'); }}><Brand /></a><button className="workspace-button" onClick={() => go('settings')}><span className="workspace-avatar">{me.organization.slice(0, 1)}</span><span><strong>{me.organization}</strong><small>Workspace</small></span><ChevronDown size={14}/></button><div className="nav-label">WORKSPACE</div><nav aria-label="Main navigation">{navigation.map(([id, label, Icon]) => <button key={id} className={`nav-item ${(view === id || (id === 'messages' && view === 'compose')) ? 'active' : ''}`} aria-current={view === id ? 'page' : undefined} onClick={() => go(id)}><Icon size={18}/>{label}{id === 'messages' && <span className="nav-count">{number(overview?.stats.total)}</span>}</button>)}</nav><div className="sidebar-bottom"><div className="plan-summary"><div><strong>{cycle?.plan_name || 'Launch'} plan</strong><button onClick={() => go('plans')} aria-label="Manage plan"><ArrowUpRight size={15}/></button></div><p>{number(used)} <span>/ {number(cycle?.allowance)} emails</span></p><progress value={used} max={cycle?.allowance || 1}/><small>{number(Math.max(0, (cycle?.allowance || 0) - used))} emails available</small></div><button className={`nav-item ${view === 'docs' ? 'active' : ''}`} onClick={() => go('docs')}><BookOpen size={18}/>Developer guide<ArrowUpRight size={14}/></button>{local && <a className="nav-item" href="/inbox"><Inbox size={18}/>Local test inbox<ArrowUpRight size={14}/></a>}<button className={`nav-item ${view === 'settings' ? 'active' : ''}`} onClick={() => go('settings')}><Settings size={18}/>Settings</button><div className="sidebar-footer">A product of Velion Smart Technologies</div></div></aside><div className="main-shell"><header className="topbar"><div className="breadcrumb"><button className="icon-button mobile-menu" aria-label="Open navigation" aria-expanded={mobile} onClick={() => setMobile(!mobile)}><Menu size={20}/></button><span>Workspace</span><span className="slash">/</span><strong>{titles[view] || 'Overview'}</strong></div><div className="topbar-actions"><form className="global-search" onSubmit={e => { e.preventDefault(); const q = new FormData(e.currentTarget).get('q'); router.push(`/?view=messages&q=${encodeURIComponent(String(q || ''))}`); }}><Search size={15}/><input aria-label="Search emails" name="q" placeholder="Search emails…"/></form><span className="environment"><span className="environment-dot"/>{local ? 'Local workspace' : 'Workspace'}</span><button className="user-avatar" aria-label="Open workspace settings" onClick={() => go('settings')}>{me.name.slice(0, 1)}</button></div></header><main id="main" className="content"><div className="page-heading"><div><h1>{view === 'overview' ? 'Your email, under your control.' : titles[view] || 'Overview'}</h1><p>{view === 'overview' ? `Welcome back, ${me.name.split(' ')[0]}. Here’s what’s happening in your workspace.` : descriptions[view]}</p></div><div className="heading-actions">{view === 'overview' || view === 'messages' ? <><Refresh onClick={refresh}/><button className="button primary" onClick={() => go('compose')}><Plus size={16}/>Send email</button></> : null}</div></div>{local && <div className="environment-banner"><span className="environment-dot"/><span><strong>Test environment.</strong> Messages are delivered to your local inbox. No external emails or payments.</span><a href="/inbox">Open inbox<ArrowUpRight size={14}/></a></div>}{error && <div className="alert error" role="alert">{error}<button className="icon-button" aria-label="Dismiss error" onClick={() => setError('')}><X size={16}/></button></div>}{notice && <div className="alert success" role="status"><CheckCircle2 size={17}/>{notice}<button className="icon-button" aria-label="Dismiss notification" onClick={() => setNotice('')}><X size={16}/></button></div>}{loading && !overview ? <div className="panel loading-panel">Loading workspace data…</div> : view === 'overview' && overview ? <><section className="metrics" aria-label="Email totals">{[['Emails accepted', overview.stats.total, Mail], ['Delivered', overview.stats.delivered, CheckCircle2], ['In queue', overview.stats.queued, Send], ['Needs attention', overview.stats.attention, ShieldCheck]].map(([label, value, Icon]: any) => <div className="metric" key={label}><div><span>{label}</span><Icon size={16}/></div><strong>{number(value)}</strong><small>{label === 'Delivered' && local ? 'Accepted by your test inbox' : 'All-time workspace activity'}</small></div>)}</section><div className="overview-grid"><section className="panel activity-panel"><div className="panel-heading"><div><h2>Email activity</h2><p>Accepted recipient emails over the last 14 days</p></div><span className="period-label">Last 14 days</span></div><Activity daily={overview.daily}/><div className="chart-legend"><span className="legend-dot"/>Emails accepted <span>Actual workspace data</span></div></section><section className="setup-panel"><span className="setup-icon"><Send size={22}/></span><h2>Make your first delivery.</h2><p>A few small steps. A whole new way to send.</p><button className="setup-step" onClick={() => go('senders')}><CheckCircle2 size={19} className={overview.senders ? 'green' : ''}/><span><strong>Set up your sender</strong><small>{overview.senders ? 'Your hosted identity is ready' : 'Verify a domain or hosted identity'}</small></span><ArrowUpRight size={16}/></button><button className="setup-step" onClick={() => go('keys')}><KeyRound size={19}/><span><strong>Connect your application</strong><small>Create a scoped API key</small></span><ArrowUpRight size={16}/></button><button className="setup-step" onClick={() => go('compose')}><Mail size={19}/><span><strong>Send your first email</strong><small>See the full delivery journey</small></span><ArrowUpRight size={16}/></button><button className="text-button" onClick={() => go('docs')}>Read the developer guide<ArrowRight size={15}/></button></section></div><section className="panel"><div className="panel-heading"><div><h2>Recent emails</h2><p>Every message. A clear delivery trail.</p></div><button className="text-button" onClick={() => go('messages')}>View all emails<ArrowRight size={15}/></button></div><MessageTable items={overview.recent} onOpen={openMessage}/>{detail && <MessageDetail detail={detail} close={() => setDetail(null)}/>}</section><div className="overview-footer"><ShieldCheck size={16}/><span>Your platform. Your sending infrastructure.</span><button onClick={() => go('senders')}>Manage sending identities<ArrowUpRight size={14}/></button></div></> : <Views view={view} me={me} overview={overview} items={items} identities={identities} domains={domains} detail={detail} local={local} busy={busy} run={run} go={go} openMessage={openMessage} closeDetail={() => setDetail(null)} refresh={refresh}/>}</main><footer className="main-footer"><span>© {new Date().getFullYear()} VSTMailer</span><span>Built by Velion Smart Technologies</span></footer></div></div>;
+}
+const descriptions: Record<string, string> = { messages: 'Track each recipient and understand every delivery outcome.', compose: 'Choose a verified sender and send a message.', campaigns: 'Bring a message to the people who asked to hear from you.', contacts: 'Manage your audience and record their permission.', templates: 'Keep your best messages ready to send.', senders: 'Send with your own domain, or use a hosted address.', keys: 'Connect your application with revocable API credentials.', plans: 'A clear view of your allowance and recipient usage.', settings: 'Your organization, account, and sending environment.', docs: 'Go from your first API request to a traceable email.' };
+function Activity({ daily }: {
+    daily: Row[];
+}) { const days = Array.from({ length: 14 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - 13 + i); const key = d.toISOString().slice(0, 10); return { label: d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }), value: daily.find(r => String(r.day).slice(0, 10) === key)?.count || 0 }; }); const max = Math.max(1, ...days.map(d => d.value)); return <div className="activity-chart" role="img" aria-label={`14 day activity: ${days.map(d => `${d.label}: ${d.value}`).join(', ')}`}><div className="chart-grid">{[max, Math.round(max / 2), 0].map((n, i) => <div key={i}><span>{n}</span></div>)}</div><div className="bars">{days.map((d, i) => <div className="bar-slot" key={i}><div className="bar" style={{ height: d.value ? `${Math.max(3, d.value / max * 100)}%` : '2px', opacity: d.value ? 1 : 0.18 }} title={`${d.label}: ${d.value}`}/><small>{i % 3 === 0 || i === 13 ? d.label : ''}</small></div>)}</div>{!daily.length && <div className="chart-empty"><Mail size={23}/><strong>A fresh start.</strong><span>Your email activity will appear here.</span></div>}</div>; }
+export function MessageDetail({ detail, close }: {
+    detail: Row;
+    close: () => void;
+}) { return <section className="message-detail"><div className="panel-heading"><h2>{detail.subject}</h2><button className="icon-button" aria-label="Close message details" onClick={close}><X size={18}/></button></div><dl className="detail-grid"><div><dt>To</dt><dd>{detail.recipient}</dd></div><div><dt>From</dt><dd>{detail.sender}</dd></div><div><dt>Reply-To</dt><dd>{detail.reply_to}</dd></div><div><dt>Message ID</dt><dd className="mono">{detail.id}</dd></div></dl><pre className="message-body">{detail.text_body || detail.html}</pre><h3>Activity</h3><ol className="event-list">{detail.events.map((e: Row, i: number) => <li key={i}><strong>{e.kind.replaceAll('_', ' ')}</strong><span>{e.detail}</span></li>)}</ol></section>; }

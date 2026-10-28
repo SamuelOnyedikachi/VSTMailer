@@ -1,0 +1,64 @@
+# Local development only. All exposed services are bound to loopback.
+name: vstmailer
+x-common: &common
+  image: vstmailer:local
+  build: .
+  init: true
+  environment: &environment
+    APP_MODE: local
+    NODE_ENV: development
+    DATABASE_URL: postgres://vstmailer:vstmailer@db:5432/vstmailer
+    APP_URL: http://localhost:3000
+    API_HOST: 0.0.0.0
+    API_PORT: 4010
+    HOSTED_SENDING_DOMAIN: send.vstmailer.test
+    AUTH_FROM: accounts@auth.vstmailer.test
+    TRANSPORT: smtp-local
+    SMTP_HOST: inbox
+    SMTP_PORT: 1025
+  depends_on:
+    migrate:
+      condition: service_completed_successfully
+services:
+  db:
+    image: postgres:18-bookworm
+    environment:
+      POSTGRES_USER: vstmailer
+      POSTGRES_PASSWORD: vstmailer
+      POSTGRES_DB: vstmailer
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: ["database:/var/lib/postgresql"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vstmailer -d vstmailer"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  migrate:
+    image: vstmailer:local
+    build: .
+    environment: *environment
+    command: ["npm", "run", "db:migrate"]
+    depends_on:
+      db:
+        condition: service_healthy
+  api:
+    <<: *common
+    command: ["npm", "run", "start:api"]
+  worker:
+    <<: *common
+    command: ["npm", "run", "start:worker"]
+  inbox:
+    <<: *common
+    environment:
+      <<: *environment
+      SMTP_BIND: 0.0.0.0
+    command: ["node", "--import", "tsx", "src/local-inbox.ts"]
+  web:
+    <<: *common
+    ports: ["127.0.0.1:3000:3000"]
+    environment:
+      API_URL: http://api:4010
+      NEXT_DIST_DIR: .next-production
+      NEXT_TELEMETRY_DISABLED: 1
+volumes:
+  database:
