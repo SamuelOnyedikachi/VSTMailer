@@ -40,7 +40,7 @@ export async function acceptMail(pool: pg.Pool, orgId: string, input: MailInput,
         }
         if (org.status !== 'active')
             throw new AppError(403, 'This workspace is pending approval or suspended.');
-        const identity = (await c.query("SELECT * FROM identities WHERE id=$1 AND org_id=$2 AND status='active'", [data.identityId, orgId])).rows[0];
+        const identity = (await c.query("SELECT * FROM identities WHERE id=$1 AND org_id=$2 AND status='active' AND deleted_at IS NULL", [data.identityId, orgId])).rows[0];
         if (!identity)
             throw new AppError(403, 'Sending identity is not active or does not belong to this workspace.');
         const owner = (await c.query('SELECT email FROM users WHERE org_id=$1 AND verified ORDER BY created_at LIMIT 1', [orgId])).rows[0];

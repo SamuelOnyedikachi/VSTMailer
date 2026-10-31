@@ -36,3 +36,9 @@ if (!response.ok) throw new Error(await response.text());
 ```
 
 Escape untrusted values when rendering HTML. Reuse an idempotency key only for the same payload. Each recipient consumes subscription allowance; API acceptance is not an inbox-delivery guarantee. Custom sender replies return to that sender's existing mailbox; hosted send-only identities use the verified account Reply-To.
+
+## No-domain senders and removal
+
+Open Senders & domains → No domain yet? Create a VST sending address. Enter a display name and local address part (for example support). The server appends the workspace namespace and operator-controlled hosted sending domain. Replies go to the verified account email shown in the form. This creates a send-only VST identity, not a mailbox and not a new Gmail/Outlook account. Additional reply addresses still require a separate ownership-verification feature. Production identities remain pending until founder provisioning approval; they are listed under Founder administration → Sender provisioning.
+
+Delete sender removes an identity from the active list and blocks new API/SMTP acceptance. Historical messages retain the old identity. The worker processes pending mail for deleted senders independently of schedule and workspace suspension, marks it suppressed and releases reservations. Already claimed/in-flight or unknown handoffs are not automatically cancelled or resent and may still complete; mail at the transport cannot be recalled here. Recreating the address makes a new identity ID so old queued jobs cannot revive.

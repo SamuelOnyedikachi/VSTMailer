@@ -24,7 +24,7 @@ export async function customerRoutes(app: FastifyInstance, pool: pg.Pool, config
             pool.query(`SELECT count(*)::int AS total,count(*) FILTER(WHERE status IN ('delivered_local','delivered_to_server'))::int AS delivered,count(*) FILTER(WHERE status IN ('accepted','submitting','deferred','transport_queued'))::int AS queued,count(*) FILTER(WHERE status IN ('bounced','submission_unknown'))::int AS attention FROM messages WHERE org_id=$1`, [org]),
             pool.query("SELECT date_trunc('day',created_at) AS day,count(*)::int AS count FROM messages WHERE org_id=$1 AND created_at>now()-interval '14 days' GROUP BY 1 ORDER BY 1", [org]),
             pool.query('SELECT id,recipient,subject,status,created_at FROM messages WHERE org_id=$1 ORDER BY created_at DESC LIMIT 6', [org]),
-            pool.query("SELECT count(*)::int AS count FROM identities WHERE org_id=$1 AND status='active'", [org]), pool.query('SELECT count(*)::int AS count FROM contacts WHERE org_id=$1', [org])
+            pool.query("SELECT count(*)::int AS count FROM identities WHERE org_id=$1 AND status='active' AND deleted_at IS NULL", [org]), pool.query('SELECT count(*)::int AS count FROM contacts WHERE org_id=$1', [org])
         ]);
         return { cycle: cycle.rows[0], stats: stats.rows[0], daily: daily.rows, recent: recent.rows, senders: senders.rows[0].count, contacts: contacts.rows[0].count };
     });

@@ -49,17 +49,16 @@ export async function dispatchOne(pool: pg.Pool, transport: Transport): Promise<
         const stale = await c.query("UPDATE outbox SET state='unknown' WHERE state='claimed' AND claimed_at<now()-interval '5 minutes' RETURNING message_id");
         if (stale.rowCount)
             await c.query("UPDATE messages SET status='submission_unknown',updated_at=now() WHERE id=ANY($1::uuid[])", [stale.rows.map(r => r.message_id)]);
-        const q = (await c.query(`SELECT q.id,q.message_id,q.attempts,q.org_id FROM outbox q JOIN organizations o ON o.id=q.org_id WHERE q.state='pending' AND q.available_at<=now() AND o.status='active' ORDER BY q.available_at,q.id FOR UPDATE OF q SKIP LOCKED LIMIT 1`)).rows[0];
+        const q = (await c.query(`SELECT q.id,q.message_id,q.attempts,q.org_id FROM outbox q JOIN organizations o ON o.id=q.org_id JOIN messages qm ON qm.id=q.message_id JOIN identities qi ON qi.id=qm.identity_id WHERE q.state='pending' AND (qi.deleted_at IS NOT NULL OR (q.available_at<=now() AND o.status='active')) ORDER BY (qi.deleted_at IS NOT NULL) DESC, q.available_at,q.id FOR UPDATE OF q SKIP LOCKED LIMIT 1`)).rows[0];
         if (!q)
             return null;
         const org = (await c.query('SELECT status FROM organizations WHERE id=$1 FOR UPDATE', [q.org_id])).rows[0];
-        if (org.status !== 'active')
-            return null;
-        const m = (await c.query('SELECT m.*,i.email AS sender FROM messages m JOIN identities i ON i.id=m.identity_id WHERE m.id=$1 FOR UPDATE OF m', [q.message_id])).rows[0];
+        const m = (await c.query('SELECT m.*,i.email AS sender,i.deleted_at AS sender_deleted_at FROM messages m JOIN identities i ON i.id=m.identity_id WHERE m.id=$1 FOR UPDATE OF m', [q.message_id])).rows[0];
+        if(org.status!=='active'&&!m.sender_deleted_at)return null;
         const suppression = await c.query('SELECT email FROM suppressions WHERE org_id=$1 AND email=$2', [m.org_id, m.recipient]);
         const consent = m.kind === 'marketing' ? await c.query('SELECT id FROM contacts WHERE org_id=$1 AND email=$2 AND consent=true', [m.org_id, m.recipient]) : null;
         const domainBlock=await c.query("SELECT 1 FROM blocked_domains WHERE org_id=$1 AND (domain=split_part($2,'@',2) OR right(split_part($2,'@',2),length(domain)+1)='.'||domain)",[m.org_id,m.recipient]);
-        if (domainBlock.rowCount || suppression.rowCount || (consent && consent.rowCount === 0)) {
+        if (m.sender_deleted_at || domainBlock.rowCount || suppression.rowCount || (consent && consent.rowCount === 0)) {
             await c.query("UPDATE messages SET status='suppressed',updated_at=now() WHERE id=$1", [m.id]);
             await creditTransition(c, m, 'release');
             await c.query("UPDATE outbox SET state='done' WHERE id=$1", [q.id]);
