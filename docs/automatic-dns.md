@@ -23,3 +23,12 @@ Providers requiring digitally signed requests are rejected by this release. Clou
 The callback requires the same authenticated user, a matching HTTP-only browser cookie, an unexpired one-use server flow and a domain in that user's workspace. It independently checks ownership and DKIM DNS after return. DNS changes may propagate later; Check authentication records can retry. Ownership status can advance, but no sender automatically activates and no return parameter can declare successful verification.
 
 Official protocol/setup references: https://www.domainconnect.org/getting-started and https://developers.cloudflare.com/dns/reference/domain-connect/ . An Entri or provider-specific alternative would require a separate integration and service credentials.
+
+## Intended production host
+
+The owner supplied `vst.com` as the intended host. Proposed APP_URL is `https://vst.com`, and the automatic DNS callback is `https://vst.com/api/domains/setup/callback` (with a one-use state query supplied at runtime). Domain control, DNS provider, HTTPS deployment and template onboarding remain unconfirmed. The local `.env` remains on localhost. No DNS record, registration, hosting purchase or public deployment has been performed.
+
+Identity callback URLs for eventual OAuth app registration are:
+- `https://vst.com/api/auth/oauth/google/callback`
+- `https://vst.com/api/auth/oauth/github/callback`
+- `https://vst.com/api/auth/oauth/gitlab/callback`
