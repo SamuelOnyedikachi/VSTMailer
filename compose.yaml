@@ -43,7 +43,25 @@ services:
         condition: service_healthy
   api:
     <<: *common
+    environment:
+      <<: *environment
+      DOMAIN_CONNECT_PROVIDERS: '${DOMAIN_CONNECT_PROVIDERS:-}'
+      FOUNDER_ADMIN_EMAIL: ${FOUNDER_ADMIN_EMAIL:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GITLAB_CLIENT_ID: ${GITLAB_CLIENT_ID:-}
+      GITLAB_CLIENT_SECRET: ${GITLAB_CLIENT_SECRET:-}
     command: ["npm", "run", "start:api"]
+  smtp:
+    <<: *common
+    environment:
+      <<: *environment
+      SMTP_SUBMISSION_HOST: 0.0.0.0
+      SMTP_SUBMISSION_PORT: 2587
+    ports: ["127.0.0.1:2587:2587"]
+    command: ["npm", "run", "start:smtp"]
   worker:
     <<: *common
     command: ["npm", "run", "start:worker"]

@@ -1,0 +1,20 @@
+import {test,beforeEach,after} from 'node:test';
+import assert from 'node:assert/strict';
+import {pool,reset,account} from './helpers.js';
+import {register,verifyEmail,login} from '../src/auth.js';
+import {buildApp} from '../src/app.js';
+beforeEach(reset);after(()=>pool.end());
+test('API IP policies use the peer address, reject spoofed forwarding and isolate owner settings',async()=>{
+ const a=await register(pool,account());await verifyEmail(pool,a.verificationToken);const session=await login(pool,account()),cookie=`vst_session=${session.token}`,app=await buildApp(pool);
+ const call=(method:any,url:string,payload?:any,headers:any={cookie})=>app.inject({method,url,payload,headers,remoteAddress:'127.0.0.1'});
+ assert.equal((await call('POST','/security/ip-policy',{api:true,smtp:false})).statusCode,400);
+ assert.equal((await call('POST','/security/networks',{network:'192.0.2.0/24',label:'App network'})).statusCode,201);
+ assert.equal((await call('POST','/security/ip-policy',{api:true,smtp:false})).statusCode,200);
+ const key=(await call('POST','/keys',{name:'App'})).json();const headers={authorization:`Bearer ${key.token}`,'x-forwarded-for':'192.0.2.4'};
+ assert.equal((await call('GET','/overview',undefined,headers)).statusCode,403);
+ assert.equal((await call('GET','/security')).statusCode,200);
+ const state=(await call('GET','/security')).json();assert.equal(state.denied.length,1);
+ assert.equal((await call('DELETE',`/security/networks/${state.networks[0].id}`)).statusCode,400);
+ await call('POST','/security/ip-policy',{api:false,smtp:false});await pool.query("UPDATE api_keys SET expires_at=now()-interval '1 second'");assert.equal((await call('GET','/overview',undefined,headers)).statusCode,401);
+ await app.close();
+});

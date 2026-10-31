@@ -10,7 +10,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "concurrently --kill-others -n api,worker,inbox,web \"npm:dev:api\" \"npm:dev:worker\" \"npm:dev:inbox\" \"npm:dev:web\"",
+    "dev": "concurrently --kill-others -n api,worker,inbox,smtp,web \"npm:dev:api\" \"npm:dev:worker\" \"npm:dev:inbox\" \"npm:dev:smtp\" \"npm:dev:web\"",
     "dev:api": "tsx watch --env-file-if-exists=.env src/server.ts",
     "dev:worker": "tsx watch --env-file-if-exists=.env src/worker.ts",
     "dev:inbox": "tsx watch --env-file-if-exists=.env src/local-inbox.ts",
@@ -23,7 +23,9 @@
     "start:api": "tsx --env-file-if-exists=.env src/server.ts",
     "start:worker": "tsx --env-file-if-exists=.env src/worker.ts",
     "verify:local": "tsx --env-file-if-exists=.env scripts/verify-local.ts",
-    "test:acceptance": "tsx --env-file-if-exists=.env scripts/load-acceptance.ts"
+    "test:acceptance": "tsx --env-file-if-exists=.env scripts/load-acceptance.ts",
+    "dev:smtp": "tsx watch --env-file-if-exists=.env src/smtp-server.ts",
+    "start:smtp": "tsx --env-file-if-exists=.env src/smtp-server.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",

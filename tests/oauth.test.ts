@@ -50,3 +50,8 @@ test('explicit account linking requires the same signed-in user at callback',asy
  assert.equal(result.linked,true);assert.equal(Number((await pool.query('SELECT count(*) FROM organizations')).rows[0].count),1);
 });
 test('unconfigured providers cannot start a misleading authentication flow',async()=>{await assert.rejects(()=>beginOAuth(pool,'google',null,{}),/configured|available/i);});
+test('GitLab confirms a private verified email through the authenticated user API',async()=>{
+ const start=await beginOAuth(pool,'gitlab',null,env),challenge=new URL(start.url).searchParams.get('code_challenge')!;
+ const base=providerServer('gitlab',challenge);const fetcher=(async(url:any,init:any)=>String(url).endsWith('/api/v4/user')?Response.json({id:771,email:'private@example.com',confirmed_at:'2026-01-01T00:00:00Z',state:'active'}):String(url).endsWith('/userinfo')?Response.json({sub:'771',name:'Private GitLab user'}):base(url,init)) as typeof fetch;
+ const result=await finishOAuth(pool,{provider:'gitlab',state:start.state,cookieState:start.state,code:'valid'},fetcher,env);assert.equal((await authenticate(pool,result.token!))?.email,'private@example.com');
+});
