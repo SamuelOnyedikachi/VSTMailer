@@ -1,3 +1,4 @@
+import {domainSetupRoutes} from './domain-setup.js';
 import { diagnoseDomain } from '../domain-diagnostics.js';
 import type { FastifyInstance } from 'fastify';
 import type pg from 'pg';
@@ -8,6 +9,7 @@ import { sessionOnly, idOf } from './customer.js';
 import { secret } from '../auth.js';
 import { AppError } from '../errors.js';
 export async function domainRoutes(app: FastifyInstance, pool: pg.Pool) {
+    await domainSetupRoutes(app,pool);
     app.get('/identities', async (req) => ({ items: (await pool.query('SELECT * FROM identities WHERE org_id=$1 ORDER BY created_at', [req.principal.orgId])).rows }));
     app.get('/domains', async (req) => ({ items: (await pool.query('SELECT * FROM domains WHERE org_id=$1 ORDER BY created_at DESC', [req.principal.orgId])).rows }));
     app.post('/domains', async (req, reply) => { sessionOnly(req); const { name } = z.object({ name: z.string().toLowerCase().regex(/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/) }).parse(req.body); if (['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'live.com'].includes(name))

@@ -45,6 +45,7 @@ services:
     <<: *common
     environment:
       <<: *environment
+      DOMAIN_CONNECT_PROVIDERS: '${DOMAIN_CONNECT_PROVIDERS:-}'
       FOUNDER_ADMIN_EMAIL: ${FOUNDER_ADMIN_EMAIL:-}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
