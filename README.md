@@ -4,7 +4,8 @@ Independent email infrastructure by **Velion Smart Technologies**. TypeScript, N
 
 ## What runs today
 
-* Verified email signup, login, hashed sessions, separate workspaces and revocable API keys.
+* Verified email signup, Google/GitHub/GitLab OAuth, hashed sessions, separate workspaces and revocable API keys.
+* Authenticated SMTP submission, separate API/SMTP source IP policies, session revocation, domain exclusions, tags and retention.
 * Hosted send-only addresses; Gmail/Outlook are verified account and Reply-To addresses.
 * Durable per-recipient send acceptance, atomic monthly quotas, idempotency and scheduled sends.
 * A separate worker, real local SMTP inbox, uncertain-handoff holds and operator reconciliation.
@@ -38,7 +39,7 @@ npm run db:seed
 npm run dev
 ```
 
-The development machine currently uses an isolated PostgreSQL cluster at `/tmp/vstmailer-pg`, listening on **127.0.0.1:55439**. Its active connection URLs are in the ignored `.env`; do not replace that file with the example when continuing this checkout. `/tmp` storage is temporary: move to a durable PostgreSQL installation before relying on stored data.
+The development machine uses an isolated PostgreSQL cluster on persistent storage in this chat’s `work/VSTMailer/.local-postgres`, listening on **127.0.0.1:55439**. Active connection URLs are in the ignored `.env`; preserve it when continuing. The cluster uses loopback-only trust authentication for disposable local development. Use a managed native service or container volume with proper credentials for production.
 
 Web: http://localhost:3000 · API: http://127.0.0.1:4010 · local SMTP: 127.0.0.1:1025. The native demo login is created locally; the UI provides an explicit local-workspace button, disabled in production.
 
@@ -70,5 +71,5 @@ VST means Velion Smart Technologies. The business is registered in **Nigeria** a
 ## Before enabling external delivery
 
 Do not expose the local-mode deployment publicly. Configure HTTPS, secrets, Postal domains/signing, suitable static IPs, reverse DNS and permitted port 25; validate ingress authentication, backups, rate limits and sender approvals. A personal Gmail/Outlook From address cannot be authenticated by our independent servers. Full hosted mailboxes are outside the current scope.
-# VSTMailer
-# VSTMailer
+
+See [social login setup](docs/social-login.md) and [delivery controls and feature status](docs/delivery-controls.md) for the latest extension.

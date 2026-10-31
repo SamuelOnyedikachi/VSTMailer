@@ -58,7 +58,8 @@ export async function dispatchOne(pool: pg.Pool, transport: Transport): Promise<
         const m = (await c.query('SELECT m.*,i.email AS sender FROM messages m JOIN identities i ON i.id=m.identity_id WHERE m.id=$1 FOR UPDATE OF m', [q.message_id])).rows[0];
         const suppression = await c.query('SELECT email FROM suppressions WHERE org_id=$1 AND email=$2', [m.org_id, m.recipient]);
         const consent = m.kind === 'marketing' ? await c.query('SELECT id FROM contacts WHERE org_id=$1 AND email=$2 AND consent=true', [m.org_id, m.recipient]) : null;
-        if (suppression.rowCount || (consent && consent.rowCount === 0)) {
+        const domainBlock=await c.query("SELECT 1 FROM blocked_domains WHERE org_id=$1 AND (domain=split_part($2,'@',2) OR right(split_part($2,'@',2),length(domain)+1)='.'||domain)",[m.org_id,m.recipient]);
+        if (domainBlock.rowCount || suppression.rowCount || (consent && consent.rowCount === 0)) {
             await c.query("UPDATE messages SET status='suppressed',updated_at=now() WHERE id=$1", [m.id]);
             await creditTransition(c, m, 'release');
             await c.query("UPDATE outbox SET state='done' WHERE id=$1", [q.id]);

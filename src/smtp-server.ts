@@ -1,0 +1,10 @@
+import {loadConfig} from './config.js';
+import {readFile} from 'node:fs/promises';
+import {createPool} from './db.js';
+import {makeSubmissionServer} from './smtp-submission.js';
+const production=loadConfig().mode==='production';
+if(production&&process.env.SMTP_SUBMISSION_ENABLED!=='true')throw new Error('Enable commissioned SMTP submission explicitly.');
+const tls=production?{key:await readFile(process.env.SMTP_TLS_KEY_FILE||''),cert:await readFile(process.env.SMTP_TLS_CERT_FILE||'')}:undefined;
+const pool=createPool(),server=makeSubmissionServer(pool,tls);
+server.listen(Number(process.env.SMTP_SUBMISSION_PORT||2587),process.env.SMTP_SUBMISSION_HOST||(production?'0.0.0.0':'127.0.0.1'),()=>console.log('VSTMailer authenticated SMTP submission is listening.'));
+for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>server.close(()=>void pool.end()));

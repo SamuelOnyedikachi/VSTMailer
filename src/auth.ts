@@ -19,7 +19,7 @@ export type Principal = {
 };
 const registration = z.object({ email: z.email().max(254).transform(v => v.trim().toLowerCase()), password: z.string().min(12).max(128), name: z.string().trim().min(1).max(100), organization: z.string().trim().min(1).max(100) });
 export async function hashPassword(password: string) { const salt = secret(); const key = await scrypt(password, salt, 64) as Buffer; return `${salt}:${key.toString('hex')}`; }
-async function passwordMatches(password: string, stored: string) { const [salt, value] = stored.split(':'); const key = await scrypt(password, salt, 64) as Buffer; const actual = Buffer.from(value, 'hex'); return actual.length === key.length && timingSafeEqual(actual, key); }
+async function passwordMatches(password: string, stored: string | null) { if (!stored) return false; const [salt, value] = stored.split(':'); const key = await scrypt(password, salt, 64) as Buffer; const actual = Buffer.from(value, 'hex'); return actual.length === key.length && timingSafeEqual(actual, key); }
 export async function register(pool: pg.Pool, input: z.input<typeof registration>) {
     const data = registration.parse(input);
     const orgId = randomUUID(), userId = randomUUID(), token = secret();
@@ -70,6 +70,7 @@ export async function authenticate(pool: pg.Pool, token: string): Promise<Princi
     return r.rows[0] ? { ...r.rows[0], kind: 'session' } : null;
 }
 export async function authenticateKey(pool: pg.Pool, token: string): Promise<Principal | null> {
-    const r = await pool.query(`SELECT o.id AS "orgId",o.name AS organization,o.status FROM api_keys k JOIN organizations o ON o.id=k.org_id WHERE k.token_hash=$1 AND k.revoked_at IS NULL`, [digest(token)]);
+    const r = await pool.query(`SELECT o.id AS "orgId",o.name AS organization,o.status FROM api_keys k JOIN organizations o ON o.id=k.org_id WHERE k.token_hash=$1 AND k.revoked_at IS NULL AND (k.expires_at IS NULL OR k.expires_at>now())`, [digest(token)]);
+    if(r.rowCount) await pool.query('UPDATE api_keys SET last_used_at=now() WHERE token_hash=$1 AND (last_used_at IS NULL OR last_used_at<now()-interval \'1 minute\')',[digest(token)]);
     return r.rows[0] ? { ...r.rows[0], userId: '', email: '', name: 'API', kind: 'api' } : null;
 }

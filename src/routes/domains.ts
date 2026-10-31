@@ -1,3 +1,4 @@
+import { diagnoseDomain } from '../domain-diagnostics.js';
 import type { FastifyInstance } from 'fastify';
 import type pg from 'pg';
 import { randomUUID } from 'node:crypto';
@@ -11,6 +12,7 @@ export async function domainRoutes(app: FastifyInstance, pool: pg.Pool) {
     app.get('/domains', async (req) => ({ items: (await pool.query('SELECT * FROM domains WHERE org_id=$1 ORDER BY created_at DESC', [req.principal.orgId])).rows }));
     app.post('/domains', async (req, reply) => { sessionOnly(req); const { name } = z.object({ name: z.string().toLowerCase().regex(/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/) }).parse(req.body); if (['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'live.com'].includes(name))
         throw new AppError(400, 'Use a domain you own. Personal provider domains cannot be verified.'); const r = await pool.query('INSERT INTO domains(id,org_id,name,verification_token) VALUES($1,$2,$3,$4) RETURNING *', [randomUUID(), req.principal.orgId, name, secret()]); return reply.code(201).send(r.rows[0]); });
+    app.get('/domains/:id/diagnostics',async req=>{sessionOnly(req);const domain=(await pool.query('SELECT * FROM domains WHERE id=$1 AND org_id=$2',[idOf(req),req.principal.orgId])).rows[0];if(!domain)throw new AppError(404,'Domain not found.');return diagnoseDomain(domain);});
     app.post('/domains/:id/verify', async (req) => { sessionOnly(req); const d = (await pool.query('SELECT * FROM domains WHERE id=$1 AND org_id=$2', [idOf(req), req.principal.orgId])).rows[0]; if (!d)
         throw new AppError(404, 'Domain not found.'); let txt: string[][]; try {
         txt = await resolveTxt(`_vstmailer.${d.name}`);

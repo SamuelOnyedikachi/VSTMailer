@@ -13,12 +13,13 @@ export type MailInput = {
     kind?: 'transactional' | 'marketing';
     scheduledAt?: string;
     campaignId?: string;
+    tags?: string[];
 };
 export type AcceptResult = {
     ids: string[];
     suppressed: string[];
 };
-const schema = z.object({ identityId: z.uuid(), to: z.array(z.email().transform(v => v.toLowerCase())).min(1).max(100), subject: z.string().min(1).max(998).refine(s => !/[\r\n]/.test(s)), text: z.string().max(5 * 1024 * 1024).default(''), html: z.string().max(5 * 1024 * 1024).default(''), kind: z.enum(['transactional', 'marketing']).default('transactional'), scheduledAt: z.iso.datetime({ offset: true }).optional(), campaignId: z.uuid().optional() }).strict();
+const schema = z.object({ identityId: z.uuid(), to: z.array(z.email().transform(v => v.toLowerCase())).min(1).max(100), subject: z.string().min(1).max(998).refine(s => !/[\r\n]/.test(s)), text: z.string().max(5 * 1024 * 1024).default(''), html: z.string().max(5 * 1024 * 1024).default(''), kind: z.enum(['transactional', 'marketing']).default('transactional'), scheduledAt: z.iso.datetime({ offset: true }).optional(), campaignId: z.uuid().optional(), tags: z.array(z.string().trim().min(1).max(64).regex(/^[\p{L}\p{N}_. -]+$/u)).max(10).optional() }).strict();
 export async function acceptMail(pool: pg.Pool, orgId: string, input: MailInput, key: string): Promise<AcceptResult> {
     const data = schema.parse(input);
     z.string().min(1).max(256).parse(key);
@@ -52,6 +53,8 @@ export async function acceptMail(pool: pg.Pool, orgId: string, input: MailInput,
             throw new AppError(404, 'Campaign not found.');
         const recipients = [...new Set(data.to)];
         const suppressed = (await c.query('SELECT email FROM suppressions WHERE org_id=$1 AND email=ANY($2::text[])', [orgId, recipients])).rows.map(r => r.email as string);
+        const blocks=(await c.query('SELECT domain FROM blocked_domains WHERE org_id=$1',[orgId])).rows.map(r=>r.domain as string);
+        for(const email of recipients){const domain=email.split('@')[1];if(blocks.some(b=>domain===b||domain.endsWith('.'+b))&&!suppressed.includes(email))suppressed.push(email);}
         let accepted = recipients.filter(e => !suppressed.includes(e));
         if (data.kind === 'marketing' && accepted.length) {
             const consent = await c.query('SELECT email FROM contacts WHERE org_id=$1 AND consent=true AND email=ANY($2::text[])', [orgId, accepted]);
@@ -71,6 +74,7 @@ export async function acceptMail(pool: pg.Pool, orgId: string, input: MailInput,
             const id = randomUUID();
             ids.push(id);
             await c.query(`INSERT INTO messages(id,org_id,cycle_id,identity_id,campaign_id,recipient,subject,html,text_body,reply_to,kind,scheduled_at,unsubscribe_token) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,COALESCE($12::timestamptz,now()),$13)`, [id, orgId, cycle.id, identity.id, data.campaignId || null, recipient, data.subject, data.html, data.text, owner.email, data.kind, data.scheduledAt || null, secret()]);
+            if(data.tags?.length) await c.query('UPDATE messages SET tags=$2 WHERE id=$1',[id,[...new Set(data.tags)]]);
             await c.query('INSERT INTO outbox(id,message_id,org_id,available_at) VALUES($1,$2,$3,COALESCE($4::timestamptz,now()))', [randomUUID(), id, orgId, data.scheduledAt || null]);
             await c.query("INSERT INTO usage_ledger(id,org_id,cycle_id,message_id,action) VALUES($1,$2,$3,$4,'reserve')", [randomUUID(), orgId, cycle.id, id]);
             await c.query("INSERT INTO events(id,org_id,message_id,kind,detail) VALUES($1,$2,$3,'accepted','Recipient credit reserved')", [randomUUID(), orgId, id]);

@@ -1,0 +1,10 @@
+import {test,beforeEach,after} from 'node:test';
+import assert from 'node:assert/strict';
+import {pool,reset,account} from './helpers.js';
+import {register,verifyEmail} from '../src/auth.js';
+import {acceptMail} from '../src/mail.js';
+import {applyRetention} from '../src/retention.js';
+beforeEach(reset);after(()=>pool.end());
+async function setup(){const a=await register(pool,account());await verifyEmail(pool,a.verificationToken);const identity=(await pool.query('SELECT id FROM identities WHERE org_id=$1',[a.orgId])).rows[0];return {...a,identityId:identity.id};}
+test('blocked domains include subdomains and reserve no recipient credits',async()=>{const a=await setup();await pool.query('INSERT INTO blocked_domains(org_id,domain) VALUES($1,$2)',[a.orgId,'blocked.test']);const r=await acceptMail(pool,a.orgId,{identityId:a.identityId,to:['one@blocked.test','two@sub.blocked.test','ok@elsewhere.test'],subject:'Hello',text:'Body',tags:['receipt']},'domain-test');assert.equal(r.ids.length,1);assert.equal(r.suppressed.length,2);assert.deepEqual((await pool.query('SELECT tags FROM messages')).rows[0].tags,['receipt']);assert.equal((await pool.query('SELECT reserved FROM cycles WHERE org_id=$1',[a.orgId])).rows[0].reserved,1);});
+test('retention purges finished previews but preserves pending payloads and accounting',async()=>{const a=await setup();const r=await acceptMail(pool,a.orgId,{identityId:a.identityId,to:['one@example.com','two@example.com'],subject:'Hello',text:'Private body'},'retention');await pool.query("UPDATE messages SET status='delivered_local',updated_at=now()-interval '8 days' WHERE id=$1",[r.ids[0]]);await pool.query("UPDATE messages SET updated_at=now()-interval '8 days' WHERE id=$1",[r.ids[1]]);await applyRetention(pool);const rows=(await pool.query('SELECT id,text_body,payload_purged_at FROM messages')).rows;const done=rows.find(x=>x.id===r.ids[0]),pending=rows.find(x=>x.id===r.ids[1]);assert.equal(done.text_body,'');assert.ok(done.payload_purged_at);assert.equal(pending.text_body,'Private body');assert.equal(Number((await pool.query('SELECT count(*) FROM usage_ledger')).rows[0].count),2);});

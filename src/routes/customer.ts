@@ -1,3 +1,4 @@
+import { controlRoutes } from './controls.js';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import { randomUUID } from 'node:crypto';
@@ -13,6 +14,7 @@ export const sessionOnly = (req: FastifyRequest) => { if (req.principal.kind !==
     throw new AppError(403, 'Sign in to manage workspace settings.'); };
 export const idOf = (req: FastifyRequest) => z.object({ id: z.uuid() }).parse(req.params).id;
 export async function customerRoutes(app: FastifyInstance, pool: pg.Pool, config: Config) {
+    await controlRoutes(app,pool);
     app.get('/me', async (req) => ({ ...req.principal, mode: config.mode, transport: config.transport }));
     app.get('/overview', async (req) => {
         const org = req.principal.orgId;
@@ -33,8 +35,8 @@ export async function customerRoutes(app: FastifyInstance, pool: pg.Pool, config
     app.get('/messages/:id', async (req) => { const id = idOf(req); const r = await pool.query('SELECT m.*,i.email AS sender FROM messages m JOIN identities i ON i.id=m.identity_id WHERE m.id=$1 AND m.org_id=$2', [id, req.principal.orgId]); if (!r.rowCount)
         throw new AppError(404, 'Message not found.'); const events = await pool.query('SELECT kind,detail,created_at FROM events WHERE message_id=$1 AND org_id=$2 ORDER BY created_at', [id, req.principal.orgId]); return { ...r.rows[0], events: events.rows }; });
     app.post('/emails', async (req, reply) => reply.code(202).send(await acceptMail(pool, req.principal.orgId, req.body as any, z.string().min(1).max(256).parse(req.headers['idempotency-key']))));
-    app.get('/keys', async (req) => { sessionOnly(req); return { items: (await pool.query('SELECT id,name,prefix,created_at,revoked_at FROM api_keys WHERE org_id=$1 ORDER BY created_at DESC', [req.principal.orgId])).rows }; });
-    app.post('/keys', async (req, reply) => { sessionOnly(req); const { name } = z.object({ name: z.string().trim().min(1).max(100) }).parse(req.body); const token = `vst_${secret()}`; const r = await pool.query('INSERT INTO api_keys(id,org_id,name,token_hash,prefix) VALUES($1,$2,$3,$4,$5) RETURNING id,name,prefix', [randomUUID(), req.principal.orgId, name, digest(token), token.slice(0, 12)]); return reply.code(201).send({ ...r.rows[0], token }); });
+    app.get('/keys', async (req) => { sessionOnly(req); return { items: (await pool.query('SELECT id,name,prefix,created_at,revoked_at,expires_at,last_used_at FROM api_keys WHERE org_id=$1 ORDER BY created_at DESC', [req.principal.orgId])).rows }; });
+    app.post('/keys', async (req, reply) => { sessionOnly(req); const { name,expiresAt } = z.object({ name: z.string().trim().min(1).max(100),expiresAt:z.iso.datetime({offset:true}).optional() }).parse(req.body); if(expiresAt&&new Date(expiresAt).getTime()<=Date.now())throw new AppError(400,'Expiry must be in the future.'); const token = `vst_${secret()}`; const r = await pool.query('INSERT INTO api_keys(id,org_id,name,token_hash,prefix,expires_at) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,name,prefix,expires_at', [randomUUID(), req.principal.orgId, name, digest(token), token.slice(0, 12),expiresAt||null]); return reply.code(201).send({ ...r.rows[0], token }); });
     app.delete('/keys/:id', async (req) => { sessionOnly(req); const r = await pool.query('UPDATE api_keys SET revoked_at=now() WHERE id=$1 AND org_id=$2 RETURNING id', [idOf(req), req.principal.orgId]); if (!r.rowCount)
         throw new AppError(404, 'Key not found.'); return { message: 'Key revoked.' }; });
     app.get('/plans', async (req) => { sessionOnly(req); return { items: (await pool.query('SELECT * FROM plans ORDER BY allowance')).rows, billingConfigured: false }; });

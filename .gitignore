@@ -12,3 +12,5 @@ work/
 *.log
 playwright-report/
 test-results/
+
+.local-postgres/

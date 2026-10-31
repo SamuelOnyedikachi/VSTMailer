@@ -1,3 +1,4 @@
+import { enforceSource } from './security.js';
 import Fastify from 'fastify';
 import cookie from '@fastify/cookie';
 import helmet from '@fastify/helmet';
@@ -16,7 +17,7 @@ declare module 'fastify' {
     }
 }
 export async function buildApp(pool: pg.Pool, config: Config = loadConfig()) {
-    const app = Fastify({ bodyLimit: 6 * 1024 * 1024, logger: { level: 'warn', redact: ['req.headers.authorization', 'req.headers.cookie', 'body.password', 'body.token'] } });
+    const app = Fastify({ trustProxy:process.env.TRUSTED_PROXY_CIDRS?.split(',').filter(Boolean)||false, bodyLimit: 6 * 1024 * 1024, logger: { level: 'warn', redact: ['req.headers.authorization', 'req.headers.cookie', 'body.password', 'body.token'] } });
     await app.register(cookie);
     await app.register(helmet);
     await app.register(rateLimit, { max: 600, timeWindow: '1 minute' });
@@ -56,6 +57,7 @@ export async function buildApp(pool: pg.Pool, config: Config = loadConfig()) {
             const principal = bearer ? await authenticateKey(pool, bearer) : await authenticate(pool, req.cookies.vst_session || '');
             if (!principal)
                 throw new AppError(401, 'Sign in to continue.');
+            if(principal.kind==='api') await enforceSource(pool,principal.orgId,'api',req.ip);
             req.principal = principal;
         });
         await customerRoutes(protectedApp, pool, config);
