@@ -2112,3 +2112,14 @@ dd {
 }
 
 .social-login{display:grid;gap:10px;margin:22px 0 16px}.social-button{display:flex;align-items:center;gap:12px;min-height:46px;border:1px solid #cbd5d1;background:#fff;color:#142620;border-radius:8px;padding:10px 14px;font:inherit;cursor:pointer;text-align:left}.social-button span{flex:1}.social-button small{font-size:11px;color:#64756e}.social-button:disabled{cursor:not-allowed;opacity:.65}.social-button:not(:disabled):hover{background:#f2faf6;border-color:#1c8c63}.auth-divider{display:flex;align-items:center;gap:12px;color:#6b7973;font-size:12px;margin:20px 0}.auth-divider:before,.auth-divider:after{content:'';height:1px;background:#e1e7e3;flex:1}.controls-stack{display:grid;gap:20px}.controls-stack .panel{padding:24px}.controls-stack h2{margin-bottom:8px}.controls-stack form{display:grid;gap:14px;margin-top:18px}.control-row{display:flex;gap:14px;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid #e4ebe7;flex-wrap:wrap}.control-row div{display:grid;gap:5px}.control-row small{color:#6b7973}.control-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}.control-tabs a{padding:9px 14px;border:1px solid #dce5df;border-radius:8px;color:inherit}.control-tabs a[aria-current=page]{background:#e7f8ef;border-color:#3fa477}.check-row{display:flex;gap:10px;align-items:center}.check-row input{width:18px;height:18px}.secret-box{overflow-wrap:anywhere;padding:18px;background:#edfaf2;border:1px solid #a5d9bb;border-radius:8px}.controls-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}.sidebar nav{overflow-y:auto;min-height:0}.auth-form{overflow-y:auto}@media(max-width:800px){.controls-grid{grid-template-columns:1fr}.controls-stack .panel{padding:18px}}
+
+/* Keep saved template actions together and the list sized to its content. */
+.template-workspace{align-items:start}
+.saved-template-row{display:flex;align-items:center;gap:20px;padding:16px 0;border-bottom:1px solid var(--line,#dfe7e2);flex-wrap:wrap}
+.saved-template-row:last-child{border-bottom:0;padding-bottom:0}
+.saved-template-details{flex:1 1 160px;min-width:0;display:grid;gap:5px;overflow-wrap:anywhere}
+.saved-template-details small{color:var(--muted,#52645f)}
+.saved-template-actions{display:flex;align-items:center;justify-content:flex-end;gap:16px;flex:0 0 auto;margin-inline-start:auto}
+.saved-template-actions .button{min-height:40px}
+.saved-template-actions .text-button{min-height:40px}
+@media(max-width:480px){.saved-template-row{gap:12px}.saved-template-actions{gap:12px}}
