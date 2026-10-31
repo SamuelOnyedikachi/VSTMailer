@@ -1,3 +1,4 @@
+import {adminRoutes} from './routes/admin.js';
 import { enforceSource } from './security.js';
 import Fastify from 'fastify';
 import cookie from '@fastify/cookie';
@@ -61,6 +62,7 @@ export async function buildApp(pool: pg.Pool, config: Config = loadConfig()) {
             req.principal = principal;
         });
         await customerRoutes(protectedApp, pool, config);
+        await adminRoutes(protectedApp,pool);
     });
     return app;
 }

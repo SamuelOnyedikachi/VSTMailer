@@ -73,7 +73,7 @@ export async function acceptMail(pool: pg.Pool, orgId: string, input: MailInput,
         for (const recipient of accepted) {
             const id = randomUUID();
             ids.push(id);
-            await c.query(`INSERT INTO messages(id,org_id,cycle_id,identity_id,campaign_id,recipient,subject,html,text_body,reply_to,kind,scheduled_at,unsubscribe_token) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,COALESCE($12::timestamptz,now()),$13)`, [id, orgId, cycle.id, identity.id, data.campaignId || null, recipient, data.subject, data.html, data.text, owner.email, data.kind, data.scheduledAt || null, secret()]);
+            await c.query(`INSERT INTO messages(id,org_id,cycle_id,identity_id,campaign_id,recipient,subject,html,text_body,reply_to,kind,scheduled_at,unsubscribe_token) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,COALESCE($12::timestamptz,now()),$13)`, [id, orgId, cycle.id, identity.id, data.campaignId || null, recipient, data.subject, data.html, data.text, identity.kind === 'custom' ? identity.email : owner.email, data.kind, data.scheduledAt || null, secret()]);
             if(data.tags?.length) await c.query('UPDATE messages SET tags=$2 WHERE id=$1',[id,[...new Set(data.tags)]]);
             await c.query('INSERT INTO outbox(id,message_id,org_id,available_at) VALUES($1,$2,$3,COALESCE($4::timestamptz,now()))', [randomUUID(), id, orgId, data.scheduledAt || null]);
             await c.query("INSERT INTO usage_ledger(id,org_id,cycle_id,message_id,action) VALUES($1,$2,$3,$4,'reserve')", [randomUUID(), orgId, cycle.id, id]);

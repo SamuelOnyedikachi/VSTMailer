@@ -1,3 +1,4 @@
+import {isFounder} from './admin.js';
 import { controlRoutes } from './controls.js';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type pg from 'pg';
@@ -15,7 +16,7 @@ export const sessionOnly = (req: FastifyRequest) => { if (req.principal.kind !==
 export const idOf = (req: FastifyRequest) => z.object({ id: z.uuid() }).parse(req.params).id;
 export async function customerRoutes(app: FastifyInstance, pool: pg.Pool, config: Config) {
     await controlRoutes(app,pool);
-    app.get('/me', async (req) => ({ ...req.principal, mode: config.mode, transport: config.transport }));
+    app.get('/me', async (req) => ({ ...req.principal, founder:isFounder(req.principal), mode: config.mode, transport: config.transport }));
     app.get('/overview', async (req) => {
         const org = req.principal.orgId;
         const [cycle, stats, daily, recent, senders, contacts] = await Promise.all([
